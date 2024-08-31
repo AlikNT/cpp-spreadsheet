@@ -72,10 +72,10 @@ public:
     virtual ~Expr() = default;
     virtual void Print(std::ostream& out) const = 0;
     virtual void DoPrintFormula(std::ostream& out, ExprPrecedence precedence) const = 0;
-    virtual double Evaluate(/*добавьте сюда нужные аргументы*/ args) const = 0;
+    [[nodiscard]] virtual double Evaluate(const SheetInterface &sheet) const = 0;
 
     // higher is tighter
-    virtual ExprPrecedence GetPrecedence() const = 0;
+    [[nodiscard]] virtual ExprPrecedence GetPrecedence() const = 0;
 
     void PrintFormula(std::ostream& out, ExprPrecedence parent_precedence,
                       bool right_child = false) const {
@@ -125,7 +125,7 @@ public:
         rhs_->PrintFormula(out, precedence, /* right_child = */ true);
     }
 
-    ExprPrecedence GetPrecedence() const override {
+    [[nodiscard]] ExprPrecedence GetPrecedence() const override {
         switch (type_) {
             case Add:
                 return EP_ADD;
@@ -142,8 +142,30 @@ public:
         }
     }
 
-    double Evaluate(/*добавьте нужные аргументы*/) const override {
-			// Скопируйте ваше решение из предыдущих уроков.
+// Реализуйте метод Evaluate() для бинарных операций.
+// При делении на 0 выбрасывайте ошибку вычисления FormulaError
+    [[nodiscard]] double Evaluate(const SheetInterface &sheet) const override {
+        double result;
+        switch (type_) {
+            case Add:
+                result = lhs_->Evaluate(sheet) + rhs_->Evaluate(sheet);
+                break;
+            case Subtract:
+                result = lhs_->Evaluate(sheet) - rhs_->Evaluate(sheet);
+                break;
+            case Multiply:
+                result = lhs_->Evaluate(sheet) * rhs_->Evaluate(sheet);
+                break;
+            case Divide:
+                result = lhs_->Evaluate(sheet) / rhs_->Evaluate(sheet);
+                break;
+            default:
+                assert(false);
+        }
+        if (!std::isfinite(result)) {
+            throw FormulaError(FormulaError::Category::Arithmetic);
+        }
+        return result;
     }
 
 private:
@@ -176,18 +198,40 @@ public:
         operand_->PrintFormula(out, precedence);
     }
 
-    ExprPrecedence GetPrecedence() const override {
+    [[nodiscard]] ExprPrecedence GetPrecedence() const override {
         return EP_UNARY;
     }
 
-    double Evaluate(/*добавьте нужные аргументы*/ args) const override {
-        // Скопируйте ваше решение из предыдущих уроков.
+// Реализуйте метод Evaluate() для унарных операций.
+    [[nodiscard]] double Evaluate(const SheetInterface &sheet) const override {
+        if (type_ == Type::UnaryMinus) {
+            return -1.0 * operand_->Evaluate(sheet);
+        }
+        return operand_->Evaluate(sheet);
     }
 
 private:
     Type type_;
     std::unique_ptr<Expr> operand_;
 };
+
+std::ostream& operator<<(std::ostream & out, FormulaError::Category category) {
+    using namespace std::string_literals;
+    switch (category) {
+        case FormulaError::Category::Arithmetic:
+            out << "#ARITHM!"s;
+            break;
+        case FormulaError::Category::Ref:
+            out << "#REF!"s;
+            break;
+        case FormulaError::Category::Value:
+            out << "#VALUE!"s;
+            break;
+        default:
+            throw std::logic_error("Unknown FormulaError::Category");
+    }
+    return out;
+}
 
 class CellExpr final : public Expr {
 public:
@@ -207,12 +251,41 @@ public:
         Print(out);
     }
 
-    ExprPrecedence GetPrecedence() const override {
+    [[nodiscard]] ExprPrecedence GetPrecedence() const override {
         return EP_ATOM;
     }
 
-    double Evaluate(/*добавьте нужные аргументы*/ args) const override {
-        // реализуйте метод.
+    [[nodiscard]] double Evaluate(const SheetInterface& sheet) const override {
+        // Получаем ячейку из таблицы по ссылке
+        const CellInterface* cell_ptr = nullptr;
+        try {
+            cell_ptr = sheet.GetCell(*cell_);
+        } catch (InvalidPositionException&) {
+            throw FormulaError(FormulaError::Category::Ref);
+        }
+
+        // Если ячейка пуста, возвращаем 0
+        if (cell_ptr == nullptr) {
+            return 0.0;
+        }
+
+        // Получаем значение ячейки
+        CellInterface::Value value = cell_ptr->GetValue();
+
+        // Если значение - текстовое или ошибка, нужно это обработать
+        if (std::holds_alternative<double>(value)) {
+            return std::get<double>(value);
+        } else if (std::holds_alternative<std::string>(value)) {
+            if (std::get<std::string>(value).empty()) {
+                return 0.0;
+            }
+            throw FormulaError(FormulaError::Category::Value);
+        } else if (std::holds_alternative<FormulaError>(value)) {
+            throw std::get<FormulaError>(value);
+        }
+
+        assert(false);
+        return 0.0;
     }
 
 private:
@@ -233,11 +306,12 @@ public:
         out << value_;
     }
 
-    ExprPrecedence GetPrecedence() const override {
+    [[nodiscard]] ExprPrecedence GetPrecedence() const override {
         return EP_ATOM;
     }
 
-    double Evaluate(/*добавьте нужные аргументы*/ args) const override {
+// Для чисел метод возвращает значение числа.
+    [[nodiscard]] double Evaluate(const SheetInterface &sheet) const override {
         return value_;
     }
 
@@ -391,8 +465,8 @@ void FormulaAST::PrintFormula(std::ostream& out) const {
     root_expr_->PrintFormula(out, ASTImpl::EP_ATOM);
 }
 
-double FormulaAST::Execute(/*добавьте нужные аргументы*/ args) const {
-    return root_expr_->Evaluate(/*добавьте нужные аргументы*/ args);
+double FormulaAST::Execute(const SheetInterface &sheet) const {
+    return root_expr_->Evaluate(sheet);
 }
 
 FormulaAST::FormulaAST(std::unique_ptr<ASTImpl::Expr> root_expr, std::forward_list<Position> cells)

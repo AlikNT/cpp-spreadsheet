@@ -34,12 +34,12 @@ struct Size {
 };
 
 // Описывает ошибки, которые могут возникнуть при вычислении формулы.
-class FormulaError {
+class FormulaError : public std::exception {
 public:
     enum class Category {
         Ref,    // ссылка на ячейку с некорректной позицией
         Value,  // ячейка не может быть трактована как число
-        Div0,  // в результате вычисления возникло деление на ноль
+        Arithmetic,  // в результате вычисления возникло деление на ноль
     };
 
     FormulaError(Category category);
