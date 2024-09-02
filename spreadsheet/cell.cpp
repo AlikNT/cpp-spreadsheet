@@ -130,15 +130,19 @@ FormulaInterface * Cell::FormulaImpl::GetFormula() const {
 
 void Cell::AddDependencies(const FormulaImpl *formula_impl) {
     FormulaInterface* formula = formula_impl->GetFormula();
-    if (!formula->GetReferencedCells().empty()) {
-        for (const auto& pos : formula->GetReferencedCells()) {
-            if (!sheet_.GetCell(pos)) {
-                sheet_.SetCell(pos, ""s);
-            }
-            Cell* to = sheet_.GetCellOrigin(pos);
-            to_.insert(to);
-            to->from_.insert(this);
+    const auto& referenced_cells = formula->GetReferencedCells();
+
+    if (referenced_cells.empty()) {
+        return;
+    }
+
+    for (const auto& pos : referenced_cells) {
+        if (!sheet_.GetCell(pos)) {
+            sheet_.SetCell(pos, ""s);
         }
+        Cell* to = sheet_.GetCellOrigin(pos);
+        to_.insert(to);
+        to->from_.insert(this);
     }
 }
 

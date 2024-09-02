@@ -35,7 +35,7 @@ CellInterface* Sheet::GetCell(Position pos) {
 
 void Sheet::ClearCell(Position pos) {
     CheckPositionIsValid(pos);
-    if (static_cast<size_t>(pos.row) < cells_.size() && static_cast<size_t>(pos.col) < cells_[pos.row].size()) {
+    if (static_cast<size_t>(pos.row) < cells_.size() && static_cast<size_t>(pos.col) < cells_[pos.row].size() && cells_[pos.row][pos.col]) {
         cells_[pos.row][pos.col]->Clear();
         if (cells_[pos.row][pos.col]->GetReferencedCells().empty()) {
             cells_[pos.row][pos.col].reset();
