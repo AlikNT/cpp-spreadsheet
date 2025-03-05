@@ -5,7 +5,7 @@ This is a diploma project of Electronic table - a simpified analogue of Microsof
 
 ### Build
 ```Bash
-mkdir /build && cd /build && cmake -DCMAKE_BUILD_TYPE=Release .. && cmake --build .
+mkdir -p /build && cd /build && cmake -DCMAKE_BUILD_TYPE=Release .. && cmake --build .
 ```
 
 ### Run
