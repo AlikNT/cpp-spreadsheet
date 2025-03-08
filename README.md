@@ -2,6 +2,7 @@
 
 ![C++](https://img.shields.io/badge/С++-00599C)
 ![ANTLR](https://img.shields.io/badge/ANTLR-222222)
+![CMake](https://img.shields.io/badge/CMake-D1242F)
 
 
 ### Description
